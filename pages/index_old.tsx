@@ -1,20 +1,28 @@
-// index_oldに SSRを追加して 読み込みなどを早くしてみる
-import { GetServerSideProps, NextPage } from "next";
-import { useState } from "react";
-import styles from "./index.module.css"
+import { worker } from "cluster";
+import { NextPage } from "next";
+import { SubresourceIntegrityPlugin } from "next/dist/build/webpack/plugins/subresource-integrity-plugin";
+import { useEffect, useState } from "react";
 
-// getServerSidePropsから渡される propsの型
-type Props = {
-    initialImageUrl: string;
-};
-
-
-const IndexPage: NextPage<Props> = ({ initialImageUrl }) => {
+const IndexPage: NextPage = () => {
     // useStateを使って状態を定義する
     // imageUrl: 画像のURLが代入される変数 初期値.空文字列
     // loading: APIを呼び出し中かを管理する変数 初期値.true
-    const [imageUrl, setImageUrl] = useState(initialImageUrl);  //初期値を渡す
-    const [loading, setLoading] = useState(false); // 初期状態は falseにしておく
+    const [imageUrl, setImageUrl] = useState("");
+    const [loading, setLoading] = useState(true);
+
+    // マウント(はじめて表示される)のとき 画像を読み込む宣言
+    // useEffect(処理内容, どのタイミングで処理内容を実行するか)
+    // []なのは、 コンポーネントがマウントされたときのみ実行されるの意味
+    useEffect(() => {
+
+        // 非同期関数であるfetchImageが 終わってから(情報をとってきてから) useStateの状態を更新する
+        // useEffectには非同期関数を直接渡せないので 別で書く
+        fetchImage().then((newImage) => {
+            setImageUrl(newImage.url); // 画像URLの状態を更新する
+            setLoading(false);  // ローディング状態を更新する
+        });
+    }, []);
+
 
     // ボタンをクリックしたときに画像を読み込む処理
     const handleClick = async () => {
@@ -27,26 +35,14 @@ const IndexPage: NextPage<Props> = ({ initialImageUrl }) => {
     // ローディング中(loading=false)でなければ 画像を表示する
     // {}を使うJSXの構文は 式のみ しか記述できないため 文であるif文は記述できない。
     return (
-        <div className={styles.page}>
-            <button onClick={handleClick} className={styles.button}>ほかのにゃんこもみる</button>
-            <div>{loading || <img src={imageUrl} className={styles.img} />}</div>
+        <div>
+            <button onClick={handleClick}>ほかのにゃんこもみる</button>
+            <div>{loading || <img src={imageUrl} />}</div>
         </div>
     );
 };
 // default exportされてた関数をページコンポーネントとして認識
 export default IndexPage;
-
-// サーバーサイドで実行する処理
-export const getServerSideProps: GetServerSideProps<Props> = async () => {
-    const image = await fetchImage();
-
-    // IndexPageが引数として受け取るpropを戻り値に含める
-    return {
-        props: {
-            initialImageUrl: image.url,
-        },
-    };
-};
 
 type Image = {
     url: string;
